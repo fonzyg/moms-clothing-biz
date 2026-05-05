@@ -19,13 +19,13 @@ from app.db import (
     ModelShotRequest,
     OrderLine,
     OrderRequest,
-    ProductNotFoundError,
     StoreProfileUpdate,
     category_sales_summary,
     connect,
     create_model_shot,
     create_order,
     get_product,
+    get_product_inventory,
     get_store_profile,
     initialize_database,
     list_categories,
@@ -35,6 +35,7 @@ from app.db import (
     list_sizes,
     update_store_profile,
 )
+from app.fashn import FashnError, generate_fashn_model_shot, is_fashn_configured
 
 
 class VariantResponse(BaseModel):
@@ -269,17 +270,48 @@ def admin_model_shots(connection=Depends(get_connection)):
 
 @app.post("/api/admin/model-shots", response_model=ModelShotResponse, status_code=201)
 def admin_create_model_shot(payload: ModelShotRequestBody, connection=Depends(get_connection)):
-    source_image_url = payload.source_image_url
+    product = get_product_inventory(connection, payload.product_id)
+    if product is None:
+        raise HTTPException(status_code=404, detail=f"Product {payload.product_id} does not exist.")
+
+    source_image_url = payload.source_image_url or product["image_url"]
+    provider_image = payload.source_image_data_url or source_image_url
     if payload.source_image_data_url:
         source_image_url = _save_upload(payload.source_image_data_url, prefix="garment")
 
-    try:
-        return create_model_shot(
-            connection,
-            ModelShotRequest(product_id=payload.product_id, source_image_url=source_image_url),
-        )
-    except ProductNotFoundError as exc:
-        raise HTTPException(status_code=404, detail=str(exc)) from exc
+    generated_image_url = None
+    generation_mode = None
+    notes = None
+    quality_profile = product["quality_profile"]
+
+    if is_fashn_configured():
+        try:
+            generated = generate_fashn_model_shot(
+                garment_image=provider_image,
+                quality_profile=quality_profile,
+                product_category=product["category"],
+            )
+        except FashnError as exc:
+            if not _allow_fashn_demo_fallback():
+                raise HTTPException(status_code=502, detail=str(exc)) from exc
+        else:
+            generated_image_url = generated.generated_image_url
+            generation_mode = generated.generation_mode
+            notes = (
+                f"FASHN {generated.model_name} completed with prediction "
+                f"{generated.prediction_id}. {quality_profile['notes']}"
+            )
+
+    return create_model_shot(
+        connection,
+        ModelShotRequest(
+            product_id=payload.product_id,
+            source_image_url=source_image_url,
+            generated_image_url=generated_image_url,
+            generation_mode=generation_mode,
+            notes=notes,
+        ),
+    )
 
 
 @app.post("/api/orders", response_model=OrderResponse, status_code=201)
@@ -322,11 +354,15 @@ def _save_upload(data_url: str, *, prefix: str) -> str:
     except (binascii.Error, ValueError) as exc:
         raise HTTPException(status_code=400, detail="Image data is not valid base64.") from exc
 
-    if len(image_bytes) > 3_000_000:
-        raise HTTPException(status_code=413, detail="Image must be smaller than 3 MB.")
+    if len(image_bytes) > 8_000_000:
+        raise HTTPException(status_code=413, detail="Image must be smaller than 8 MB.")
 
     digest = hashlib.sha256(image_bytes).hexdigest()[:12]
     filename = f"{prefix}-{int(time.time())}-{digest}.{extension}"
     uploads_path().mkdir(parents=True, exist_ok=True)
     (uploads_path() / filename).write_bytes(image_bytes)
     return f"/uploads/{filename}"
+
+
+def _allow_fashn_demo_fallback() -> bool:
+    return os.getenv("FASHN_ALLOW_DEMO_FALLBACK", "").lower() in {"1", "true", "yes"}

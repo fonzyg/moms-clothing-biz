@@ -100,7 +100,7 @@ test("admin generates a stock-aware model shot", async () => {
         generated_image_url: "https://example.com/trouser-on-model.jpg",
         quality_tier: "premium",
         quality_label: "Premium catalog render",
-        generation_mode: "tryon-max",
+        generation_mode: "product-to-model-quality",
         stock_quantity: 24,
         status: "ready",
         notes: "High inventory supports spending more generation credits on a campaign-quality image.",
@@ -123,7 +123,7 @@ test("admin generates a stock-aware model shot", async () => {
           quality_profile: {
             quality_tier: "premium",
             quality_label: "Premium catalog render",
-            generation_mode: "tryon-max",
+            generation_mode: "product-to-model-quality",
             notes: "High inventory supports spending more generation credits on a campaign-quality image."
           }
         }

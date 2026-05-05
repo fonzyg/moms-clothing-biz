@@ -104,6 +104,7 @@ def test_admin_model_shot_endpoint_uses_inventory_quality(monkeypatch):
     db_path = scratch_root / f"store-{uuid4().hex}.db"
     try:
         monkeypatch.setenv("STORE_DATABASE_PATH", str(db_path))
+        monkeypatch.delenv("FASHN_API_KEY", raising=False)
 
         from app.main import app, database_path, uploads_path
 
@@ -132,5 +133,66 @@ def test_admin_model_shot_endpoint_uses_inventory_quality(monkeypatch):
         assert payload["quality_tier"] == "premium"
         assert payload["source_image_url"].startswith("/uploads/garment-")
         assert shots.json()[0]["product_name"] == "Tailored Work Trouser"
+    finally:
+        db_path.unlink(missing_ok=True)
+
+
+def test_admin_model_shot_endpoint_uses_fashn_when_configured(monkeypatch):
+    scratch_root = Path(__file__).resolve().parents[1] / ".test-data"
+    scratch_root.mkdir(exist_ok=True)
+    db_path = scratch_root / f"store-{uuid4().hex}.db"
+    try:
+        monkeypatch.setenv("STORE_DATABASE_PATH", str(db_path))
+        monkeypatch.setenv("FASHN_API_KEY", "test-key")
+
+        import app.main as main_module
+        from app.fashn import FashnModelShot
+        from app.main import app, database_path, uploads_path
+
+        database_path.cache_clear()
+        uploads_path.cache_clear()
+        tiny_png = (
+            "data:image/png;base64,"
+            "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAwMCAO+/p9sAAAAASUVORK5CYII="
+        )
+        seen: dict[str, str] = {}
+
+        def fake_generate_fashn_model_shot(
+            *,
+            garment_image: str,
+            quality_profile: dict,
+            product_category: str,
+        ) -> FashnModelShot:
+            seen["garment_image"] = garment_image
+            seen["quality_tier"] = quality_profile["quality_tier"]
+            seen["product_category"] = product_category
+            return FashnModelShot(
+                generated_image_url="https://cdn.example.com/model-shot.jpg",
+                prediction_id="pred-123",
+                model_name="product-to-model",
+                generation_mode=quality_profile["generation_mode"],
+            )
+
+        monkeypatch.setattr(main_module, "generate_fashn_model_shot", fake_generate_fashn_model_shot)
+
+        with TestClient(app) as client:
+            response = client.post(
+                "/api/admin/model-shots",
+                json={
+                    "product_id": 5,
+                    "source_image_data_url": tiny_png,
+                },
+            )
+
+        assert response.status_code == 201
+        payload = response.json()
+        assert payload["generated_image_url"] == "https://cdn.example.com/model-shot.jpg"
+        assert payload["generation_mode"] == "product-to-model-quality"
+        assert "FASHN product-to-model completed" in payload["notes"]
+        assert seen == {
+            "garment_image": tiny_png,
+            "quality_tier": "premium",
+            "product_category": "Bottoms",
+        }
     finally:
         db_path.unlink(missing_ok=True)

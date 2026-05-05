@@ -15,7 +15,7 @@ A full-stack clothing storefront built to fill the SWE I portfolio gaps recruite
 - Product variants with stock counts.
 - Cart and checkout flow.
 - Admin dashboard for updating store contact info and the storefront photo.
-- Admin model-shot generator that turns product/clothing images into on-model listing shots using stock-based quality tiers.
+- Admin model-shot generator that turns product/clothing images into on-model listing shots using stock-based quality tiers and a real provider hook.
 - Python API that persists customers, orders, and order items.
 - Analytics endpoint showing revenue by category using explicit SQL joins and aggregation.
 
@@ -106,10 +106,21 @@ You can talk through:
 
 ## Admin AI Demo
 
-The admin dashboard includes a provider-ready model-shot workflow:
+The admin dashboard includes a stock-aware model-shot workflow:
 
 - **20+ units in stock:** Premium catalog render.
 - **10-19 units in stock:** Balanced listing render.
 - **Under 10 units in stock:** Draft low-stock preview.
 
-The current implementation saves the source clothing image and returns a demo on-model shot from the product catalog. The backend is intentionally shaped so a real provider such as FASHN, Pixelcut, or another virtual try-on API can replace the demo generator behind `/api/admin/model-shots`.
+When `FASHN_API_KEY` is set, `/api/admin/model-shots` sends the uploaded clothing photo to FASHN's `product-to-model` model, polls the status endpoint, and stores the returned image URL. If no key is configured, the app keeps working in demo mode by saving the clothing source image and returning the product catalog image as the generated shot.
+
+Optional backend environment variables:
+
+```powershell
+FASHN_API_KEY=your_key_here
+FASHN_MODEL_IMAGE_URL=https://example.com/optional-person-reference.jpg
+FASHN_TIMEOUT_SECONDS=120
+FASHN_ALLOW_DEMO_FALLBACK=false
+```
+
+`FASHN_MODEL_IMAGE_URL` is optional. Leave it blank to let FASHN generate a person wearing the product, or set it when you want every product shot to use the same model/person reference.

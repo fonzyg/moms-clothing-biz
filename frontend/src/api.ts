@@ -223,20 +223,20 @@ export async function fetchProductInventory(): Promise<ProductInventory[]> {
           ? {
               quality_tier: "premium" as const,
               quality_label: "Premium catalog render",
-              generation_mode: "tryon-max",
+              generation_mode: "product-to-model-quality",
               notes: "High inventory supports spending more generation credits on a campaign-quality image."
             }
           : product.total_stock >= 10
             ? {
                 quality_tier: "balanced" as const,
                 quality_label: "Balanced listing render",
-                generation_mode: "tryon-v1.6-quality",
+                generation_mode: "product-to-model-balanced",
                 notes: "Moderate inventory gets a polished listing image without using the highest-cost mode."
               }
             : {
                 quality_tier: "draft" as const,
                 quality_label: "Draft low-stock preview",
-                generation_mode: "tryon-v1.6-performance",
+                generation_mode: "product-to-model-fast",
                 notes: "Low inventory gets a fast preview so expensive generation is reserved for better-stocked items."
               };
       return {

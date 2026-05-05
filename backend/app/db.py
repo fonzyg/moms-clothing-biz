@@ -41,6 +41,10 @@ class StoreProfileUpdate:
 class ModelShotRequest:
     product_id: int
     source_image_url: str | None = None
+    generated_image_url: str | None = None
+    generation_mode: str | None = None
+    status: str = "ready"
+    notes: str | None = None
 
 
 class StoreError(Exception):
@@ -324,6 +328,10 @@ def list_product_inventory(connection: sqlite3.Connection) -> list[dict[str, Any
     return [_inventory_from_row(row) for row in rows]
 
 
+def get_product_inventory(connection: sqlite3.Connection, product_id: int) -> dict[str, Any] | None:
+    return _get_product_inventory(connection, product_id)
+
+
 def create_model_shot(connection: sqlite3.Connection, request: ModelShotRequest) -> dict[str, Any]:
     product = _get_product_inventory(connection, request.product_id)
     if product is None:
@@ -331,6 +339,9 @@ def create_model_shot(connection: sqlite3.Connection, request: ModelShotRequest)
 
     quality = quality_profile_for_stock(product["total_stock"])
     source_image_url = request.source_image_url or product["image_url"]
+    generated_image_url = request.generated_image_url or product["image_url"]
+    generation_mode = request.generation_mode or quality["generation_mode"]
+    notes = request.notes or quality["notes"]
 
     with connection:
         cursor = connection.execute(
@@ -354,19 +365,20 @@ def create_model_shot(connection: sqlite3.Connection, request: ModelShotRequest)
                 :quality_label,
                 :generation_mode,
                 :stock_quantity,
-                'ready',
+                :status,
                 :notes
             )
             """,
             {
                 "product_id": product["id"],
                 "source_image_url": source_image_url,
-                "generated_image_url": product["image_url"],
+                "generated_image_url": generated_image_url,
                 "quality_tier": quality["quality_tier"],
                 "quality_label": quality["quality_label"],
-                "generation_mode": quality["generation_mode"],
+                "generation_mode": generation_mode,
                 "stock_quantity": product["total_stock"],
-                "notes": quality["notes"],
+                "status": request.status,
+                "notes": notes,
             },
         )
     shot = get_model_shot(connection, int(cursor.lastrowid))
@@ -430,20 +442,20 @@ def quality_profile_for_stock(total_stock: int) -> dict[str, Any]:
         return {
             "quality_tier": "premium",
             "quality_label": "Premium catalog render",
-            "generation_mode": "tryon-max",
+            "generation_mode": "product-to-model-quality",
             "notes": "High inventory supports spending more generation credits on a campaign-quality image.",
         }
     if total_stock >= 10:
         return {
             "quality_tier": "balanced",
             "quality_label": "Balanced listing render",
-            "generation_mode": "tryon-v1.6-quality",
+            "generation_mode": "product-to-model-balanced",
             "notes": "Moderate inventory gets a polished listing image without using the highest-cost mode.",
         }
     return {
         "quality_tier": "draft",
         "quality_label": "Draft low-stock preview",
-        "generation_mode": "tryon-v1.6-performance",
+        "generation_mode": "product-to-model-fast",
         "notes": "Low inventory gets a fast preview so expensive generation is reserved for better-stocked items.",
     }
 

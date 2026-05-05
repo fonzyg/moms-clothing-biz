@@ -469,8 +469,8 @@ function AdminDashboard({
       setError("Choose a JPG, PNG, or WebP image.");
       return;
     }
-    if (file.size > 3_000_000) {
-      setError("Choose an image smaller than 3 MB.");
+    if (file.size > 8_000_000) {
+      setError("Choose an image smaller than 8 MB.");
       return;
     }
 
@@ -663,8 +663,8 @@ function ModelShotPanel() {
       setError("Choose a JPG, PNG, or WebP image.");
       return;
     }
-    if (file.size > 3_000_000) {
-      setError("Choose an image smaller than 3 MB.");
+    if (file.size > 8_000_000) {
+      setError("Choose an image smaller than 8 MB.");
       return;
     }
 
