@@ -15,6 +15,7 @@ A full-stack clothing storefront built to fill the SWE I portfolio gaps recruite
 - Product variants with stock counts.
 - Cart and checkout flow.
 - Admin dashboard for updating store contact info and the storefront photo.
+- Admin model-shot generator that turns product/clothing images into on-model listing shots using stock-based quality tiers.
 - Python API that persists customers, orders, and order items.
 - Analytics endpoint showing revenue by category using explicit SQL joins and aggregation.
 
@@ -97,5 +98,18 @@ You can talk through:
 | GET | `/api/filters` | Available categories and sizes |
 | GET | `/api/store-profile` | Editable storefront contact info and hero photo |
 | PUT | `/api/admin/store-profile` | Admin update for profile/contact/photo demo |
+| GET | `/api/admin/products/inventory` | Product inventory with generation quality tiers |
+| GET | `/api/admin/model-shots` | Recent generated model shots |
+| POST | `/api/admin/model-shots` | Create a stock-aware on-model product image record |
 | POST | `/api/orders` | Checkout |
 | GET | `/api/analytics/category-sales` | SQL aggregation by category |
+
+## Admin AI Demo
+
+The admin dashboard includes a provider-ready model-shot workflow:
+
+- **20+ units in stock:** Premium catalog render.
+- **10-19 units in stock:** Balanced listing render.
+- **Under 10 units in stock:** Draft low-stock preview.
+
+The current implementation saves the source clothing image and returns a demo on-model shot from the product catalog. The backend is intentionally shaped so a real provider such as FASHN, Pixelcut, or another virtual try-on API can replace the demo generator behind `/api/admin/model-shots`.

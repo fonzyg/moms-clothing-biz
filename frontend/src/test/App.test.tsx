@@ -86,6 +86,80 @@ test("admin dashboard saves contact info changes", async () => {
   );
 });
 
+test("admin generates a stock-aware model shot", async () => {
+  const user = userEvent.setup();
+  const fetchMock = vi.fn(async (input: RequestInfo | URL, init?: RequestInit) => {
+    const url = String(input);
+    if (url.includes("/admin/model-shots") && init?.method === "POST") {
+      return jsonResponse({
+        id: 1,
+        product_id: 5,
+        product_name: "Tailored Work Trouser",
+        category: "Bottoms",
+        source_image_url: "https://example.com/trouser-flatlay.jpg",
+        generated_image_url: "https://example.com/trouser-on-model.jpg",
+        quality_tier: "premium",
+        quality_label: "Premium catalog render",
+        generation_mode: "tryon-max",
+        stock_quantity: 24,
+        status: "ready",
+        notes: "High inventory supports spending more generation credits on a campaign-quality image.",
+        created_at: "2026-05-05 10:00:00"
+      });
+    }
+    if (url.includes("/admin/model-shots")) {
+      return jsonResponse([]);
+    }
+    if (url.includes("/admin/products/inventory")) {
+      return jsonResponse([
+        {
+          id: 5,
+          slug: "tailored-work-trouser",
+          name: "Tailored Work Trouser",
+          category: "Bottoms",
+          image_url: "https://example.com/trouser.jpg",
+          price_cents: 7400,
+          total_stock: 24,
+          quality_profile: {
+            quality_tier: "premium",
+            quality_label: "Premium catalog render",
+            generation_mode: "tryon-max",
+            notes: "High inventory supports spending more generation credits on a campaign-quality image."
+          }
+        }
+      ]);
+    }
+    if (url.includes("/store-profile")) {
+      return jsonResponse({
+        id: 1,
+        business_name: "Mom's Clothing Biz",
+        tagline: "Small-batch wardrobe staples picked with care.",
+        contact_name: "Maria Owner",
+        email: "hello@momsclothingbiz.com",
+        phone: "(801) 555-0148",
+        city: "Salt Lake City",
+        state: "UT",
+        instagram_url: "https://instagram.com/momsclothingbiz",
+        hero_image_url:
+          "https://images.unsplash.com/photo-1445205170230-053b83016050?auto=format&fit=crop&w=1800&q=80",
+        updated_at: "2026-05-05 09:00:00"
+      });
+    }
+    if (url.includes("/filters")) {
+      return jsonResponse({ categories: ["Bottoms"], sizes: ["S", "M", "L"] });
+    }
+    return jsonResponse([]);
+  });
+  vi.stubGlobal("fetch", fetchMock);
+  render(<App />);
+
+  await user.click(screen.getByRole("button", { name: "Admin dashboard" }));
+  expect(await screen.findByText("Premium catalog render")).toBeInTheDocument();
+  await user.click(screen.getByRole("button", { name: "Generate model shot" }));
+
+  expect(await screen.findByText("Premium catalog render ready for Tailored Work Trouser")).toBeInTheDocument();
+});
+
 function jsonResponse(payload: unknown) {
   return new Response(JSON.stringify(payload), {
     headers: {

@@ -16,16 +16,21 @@ from pydantic import BaseModel, EmailStr, Field
 
 from app.db import (
     InventoryError,
+    ModelShotRequest,
     OrderLine,
     OrderRequest,
+    ProductNotFoundError,
     StoreProfileUpdate,
     category_sales_summary,
     connect,
+    create_model_shot,
     create_order,
     get_product,
     get_store_profile,
     initialize_database,
     list_categories,
+    list_model_shots,
+    list_product_inventory,
     list_products,
     list_sizes,
     update_store_profile,
@@ -99,6 +104,46 @@ class StoreProfileRequest(BaseModel):
     instagram_url: str = Field(min_length=8, max_length=220)
     hero_image_url: str = Field(min_length=8, max_length=500)
     hero_image_data_url: str | None = None
+
+
+class QualityProfileResponse(BaseModel):
+    quality_tier: str
+    quality_label: str
+    generation_mode: str
+    notes: str
+
+
+class ProductInventoryResponse(BaseModel):
+    id: int
+    slug: str
+    name: str
+    category: str
+    image_url: str
+    price_cents: int
+    total_stock: int
+    quality_profile: QualityProfileResponse
+
+
+class ModelShotRequestBody(BaseModel):
+    product_id: int
+    source_image_url: str | None = Field(default=None, max_length=500)
+    source_image_data_url: str | None = None
+
+
+class ModelShotResponse(BaseModel):
+    id: int
+    product_id: int
+    product_name: str
+    category: str
+    source_image_url: str
+    generated_image_url: str
+    quality_tier: str
+    quality_label: str
+    generation_mode: str
+    stock_quantity: int
+    status: str
+    notes: str
+    created_at: str
 
 
 @lru_cache
@@ -196,7 +241,7 @@ def store_profile(connection=Depends(get_connection)):
 def admin_update_store_profile(payload: StoreProfileRequest, connection=Depends(get_connection)):
     hero_image_url = payload.hero_image_url
     if payload.hero_image_data_url:
-        hero_image_url = _save_profile_image(payload.hero_image_data_url)
+        hero_image_url = _save_upload(payload.hero_image_data_url, prefix="profile")
 
     profile = StoreProfileUpdate(
         business_name=payload.business_name,
@@ -210,6 +255,31 @@ def admin_update_store_profile(payload: StoreProfileRequest, connection=Depends(
         hero_image_url=hero_image_url,
     )
     return update_store_profile(connection, profile)
+
+
+@app.get("/api/admin/products/inventory", response_model=list[ProductInventoryResponse])
+def admin_product_inventory(connection=Depends(get_connection)):
+    return list_product_inventory(connection)
+
+
+@app.get("/api/admin/model-shots", response_model=list[ModelShotResponse])
+def admin_model_shots(connection=Depends(get_connection)):
+    return list_model_shots(connection)
+
+
+@app.post("/api/admin/model-shots", response_model=ModelShotResponse, status_code=201)
+def admin_create_model_shot(payload: ModelShotRequestBody, connection=Depends(get_connection)):
+    source_image_url = payload.source_image_url
+    if payload.source_image_data_url:
+        source_image_url = _save_upload(payload.source_image_data_url, prefix="garment")
+
+    try:
+        return create_model_shot(
+            connection,
+            ModelShotRequest(product_id=payload.product_id, source_image_url=source_image_url),
+        )
+    except ProductNotFoundError as exc:
+        raise HTTPException(status_code=404, detail=str(exc)) from exc
 
 
 @app.post("/api/orders", response_model=OrderResponse, status_code=201)
@@ -232,7 +302,7 @@ def analytics(connection=Depends(get_connection)):
     return category_sales_summary(connection)
 
 
-def _save_profile_image(data_url: str) -> str:
+def _save_upload(data_url: str, *, prefix: str) -> str:
     accepted_types = {
         "image/jpeg": "jpg",
         "image/png": "png",
@@ -256,7 +326,7 @@ def _save_profile_image(data_url: str) -> str:
         raise HTTPException(status_code=413, detail="Image must be smaller than 3 MB.")
 
     digest = hashlib.sha256(image_bytes).hexdigest()[:12]
-    filename = f"profile-{int(time.time())}-{digest}.{extension}"
+    filename = f"{prefix}-{int(time.time())}-{digest}.{extension}"
     uploads_path().mkdir(parents=True, exist_ok=True)
     (uploads_path() / filename).write_bytes(image_bytes)
     return f"/uploads/{filename}"

@@ -1,8 +1,11 @@
 import type {
   CheckoutPayload,
+  ModelShot,
+  ModelShotPayload,
   OrderReceipt,
   Product,
   ProductFilters,
+  ProductInventory,
   StoreProfile,
   StoreProfileUpdatePayload
 } from "./types";
@@ -204,6 +207,79 @@ export async function updateStoreProfile(payload: StoreProfileUpdatePayload): Pr
   }
 
   return (await response.json()) as StoreProfile;
+}
+
+export async function fetchProductInventory(): Promise<ProductInventory[]> {
+  try {
+    const response = await fetch(`${API_BASE_URL}/admin/products/inventory`);
+    if (!response.ok) {
+      throw new Error("Could not load inventory");
+    }
+    return (await response.json()) as ProductInventory[];
+  } catch {
+    return fallbackProducts.map((product) => {
+      const qualityProfile =
+        product.total_stock >= 20
+          ? {
+              quality_tier: "premium" as const,
+              quality_label: "Premium catalog render",
+              generation_mode: "tryon-max",
+              notes: "High inventory supports spending more generation credits on a campaign-quality image."
+            }
+          : product.total_stock >= 10
+            ? {
+                quality_tier: "balanced" as const,
+                quality_label: "Balanced listing render",
+                generation_mode: "tryon-v1.6-quality",
+                notes: "Moderate inventory gets a polished listing image without using the highest-cost mode."
+              }
+            : {
+                quality_tier: "draft" as const,
+                quality_label: "Draft low-stock preview",
+                generation_mode: "tryon-v1.6-performance",
+                notes: "Low inventory gets a fast preview so expensive generation is reserved for better-stocked items."
+              };
+      return {
+        id: product.id,
+        slug: product.slug,
+        name: product.name,
+        category: product.category,
+        image_url: product.image_url,
+        price_cents: product.price_cents,
+        total_stock: product.total_stock,
+        quality_profile: qualityProfile
+      };
+    });
+  }
+}
+
+export async function fetchModelShots(): Promise<ModelShot[]> {
+  try {
+    const response = await fetch(`${API_BASE_URL}/admin/model-shots`);
+    if (!response.ok) {
+      throw new Error("Could not load model shots");
+    }
+    return (await response.json()) as ModelShot[];
+  } catch {
+    return [];
+  }
+}
+
+export async function createModelShot(payload: ModelShotPayload): Promise<ModelShot> {
+  const response = await fetch(`${API_BASE_URL}/admin/model-shots`, {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json"
+    },
+    body: JSON.stringify(payload)
+  });
+
+  if (!response.ok) {
+    const problem = (await response.json().catch(() => undefined)) as { detail?: string } | undefined;
+    throw new Error(problem?.detail ?? "Model shot generation failed");
+  }
+
+  return (await response.json()) as ModelShot;
 }
 
 export function resolveMediaUrl(url: string): string {

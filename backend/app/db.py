@@ -37,12 +37,22 @@ class StoreProfileUpdate:
     hero_image_url: str
 
 
+@dataclass(frozen=True)
+class ModelShotRequest:
+    product_id: int
+    source_image_url: str | None = None
+
+
 class StoreError(Exception):
     """Base exception for predictable store failures."""
 
 
 class InventoryError(StoreError):
     """Raised when a checkout tries to buy unavailable inventory."""
+
+
+class ProductNotFoundError(StoreError):
+    """Raised when admin generation references a missing product."""
 
 
 def connect(database_path: str | Path | None = None) -> sqlite3.Connection:
@@ -294,6 +304,150 @@ def category_sales_summary(connection: sqlite3.Connection) -> list[dict[str, Any
     return [dict(row) for row in rows]
 
 
+def list_product_inventory(connection: sqlite3.Connection) -> list[dict[str, Any]]:
+    rows = connection.execute(
+        """
+        SELECT
+            p.id,
+            p.slug,
+            p.name,
+            p.category,
+            p.image_url,
+            p.price_cents,
+            COALESCE(SUM(v.stock_quantity), 0) AS total_stock
+        FROM products p
+        LEFT JOIN variants v ON v.product_id = p.id
+        GROUP BY p.id
+        ORDER BY total_stock DESC, p.name ASC
+        """
+    ).fetchall()
+    return [_inventory_from_row(row) for row in rows]
+
+
+def create_model_shot(connection: sqlite3.Connection, request: ModelShotRequest) -> dict[str, Any]:
+    product = _get_product_inventory(connection, request.product_id)
+    if product is None:
+        raise ProductNotFoundError(f"Product {request.product_id} does not exist.")
+
+    quality = quality_profile_for_stock(product["total_stock"])
+    source_image_url = request.source_image_url or product["image_url"]
+
+    with connection:
+        cursor = connection.execute(
+            """
+            INSERT INTO generated_model_shots (
+                product_id,
+                source_image_url,
+                generated_image_url,
+                quality_tier,
+                quality_label,
+                generation_mode,
+                stock_quantity,
+                status,
+                notes
+            )
+            VALUES (
+                :product_id,
+                :source_image_url,
+                :generated_image_url,
+                :quality_tier,
+                :quality_label,
+                :generation_mode,
+                :stock_quantity,
+                'ready',
+                :notes
+            )
+            """,
+            {
+                "product_id": product["id"],
+                "source_image_url": source_image_url,
+                "generated_image_url": product["image_url"],
+                "quality_tier": quality["quality_tier"],
+                "quality_label": quality["quality_label"],
+                "generation_mode": quality["generation_mode"],
+                "stock_quantity": product["total_stock"],
+                "notes": quality["notes"],
+            },
+        )
+    shot = get_model_shot(connection, int(cursor.lastrowid))
+    return shot
+
+
+def list_model_shots(connection: sqlite3.Connection) -> list[dict[str, Any]]:
+    rows = connection.execute(
+        """
+        SELECT
+            s.id,
+            s.product_id,
+            p.name AS product_name,
+            p.category,
+            s.source_image_url,
+            s.generated_image_url,
+            s.quality_tier,
+            s.quality_label,
+            s.generation_mode,
+            s.stock_quantity,
+            s.status,
+            s.notes,
+            s.created_at
+        FROM generated_model_shots s
+        JOIN products p ON p.id = s.product_id
+        ORDER BY s.created_at DESC, s.id DESC
+        LIMIT 12
+        """
+    ).fetchall()
+    return [dict(row) for row in rows]
+
+
+def get_model_shot(connection: sqlite3.Connection, shot_id: int) -> dict[str, Any]:
+    row = connection.execute(
+        """
+        SELECT
+            s.id,
+            s.product_id,
+            p.name AS product_name,
+            p.category,
+            s.source_image_url,
+            s.generated_image_url,
+            s.quality_tier,
+            s.quality_label,
+            s.generation_mode,
+            s.stock_quantity,
+            s.status,
+            s.notes,
+            s.created_at
+        FROM generated_model_shots s
+        JOIN products p ON p.id = s.product_id
+        WHERE s.id = :shot_id
+        """,
+        {"shot_id": shot_id},
+    ).fetchone()
+    return dict(row)
+
+
+def quality_profile_for_stock(total_stock: int) -> dict[str, Any]:
+    if total_stock >= 20:
+        return {
+            "quality_tier": "premium",
+            "quality_label": "Premium catalog render",
+            "generation_mode": "tryon-max",
+            "notes": "High inventory supports spending more generation credits on a campaign-quality image.",
+        }
+    if total_stock >= 10:
+        return {
+            "quality_tier": "balanced",
+            "quality_label": "Balanced listing render",
+            "generation_mode": "tryon-v1.6-quality",
+            "notes": "Moderate inventory gets a polished listing image without using the highest-cost mode.",
+        }
+    return {
+        "quality_tier": "draft",
+        "quality_label": "Draft low-stock preview",
+        "generation_mode": "tryon-v1.6-performance",
+        "notes": "Low inventory gets a fast preview so expensive generation is reserved for better-stocked items.",
+    }
+
+
 def get_store_profile(connection: sqlite3.Connection) -> dict[str, Any]:
     row = connection.execute(
         """
@@ -384,6 +538,36 @@ def _upsert_customer(connection: sqlite3.Connection, request: OrderRequest) -> i
         {"email": request.email.lower()},
     ).fetchone()
     return int(row["id"])
+
+
+def _get_product_inventory(connection: sqlite3.Connection, product_id: int) -> dict[str, Any] | None:
+    row = connection.execute(
+        """
+        SELECT
+            p.id,
+            p.slug,
+            p.name,
+            p.category,
+            p.image_url,
+            p.price_cents,
+            COALESCE(SUM(v.stock_quantity), 0) AS total_stock
+        FROM products p
+        LEFT JOIN variants v ON v.product_id = p.id
+        WHERE p.id = :product_id
+        GROUP BY p.id
+        """,
+        {"product_id": product_id},
+    ).fetchone()
+    if row is None:
+        return None
+    return _inventory_from_row(row)
+
+
+def _inventory_from_row(row: sqlite3.Row) -> dict[str, Any]:
+    payload = dict(row)
+    payload["total_stock"] = int(payload["total_stock"])
+    payload["quality_profile"] = quality_profile_for_stock(payload["total_stock"])
+    return payload
 
 
 def _insert_default_store_profile(connection: sqlite3.Connection) -> None:

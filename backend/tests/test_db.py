@@ -6,16 +6,20 @@ from pathlib import Path
 
 from app.db import (
     InventoryError,
+    ModelShotRequest,
     OrderLine,
     OrderRequest,
     StoreProfileUpdate,
     category_sales_summary,
     connect,
+    create_model_shot,
     create_order,
     get_product,
     get_store_profile,
     initialize_database,
+    list_product_inventory,
     list_products,
+    quality_profile_for_stock,
     update_store_profile,
 )
 
@@ -123,6 +127,32 @@ class StoreDatabaseTest(unittest.TestCase):
         self.assertEqual("Maria's Closet", updated["business_name"])
         self.assertEqual("maria@example.com", updated["email"])
         self.assertEqual("UT", updated["state"])
+
+    def test_quality_profile_changes_with_stock(self) -> None:
+        self.assertEqual("premium", quality_profile_for_stock(20)["quality_tier"])
+        self.assertEqual("balanced", quality_profile_for_stock(10)["quality_tier"])
+        self.assertEqual("draft", quality_profile_for_stock(4)["quality_tier"])
+
+    def test_create_model_shot_uses_stock_driven_quality(self) -> None:
+        self.connection.execute(
+            """
+            UPDATE variants
+            SET stock_quantity = 1
+            WHERE product_id = 4
+            """
+        )
+        self.connection.commit()
+
+        shot = create_model_shot(
+            self.connection,
+            ModelShotRequest(product_id=4, source_image_url="/uploads/source-dress.png"),
+        )
+        inventory = list_product_inventory(self.connection)
+
+        self.assertEqual("Market Day Midi Dress", shot["product_name"])
+        self.assertEqual("draft", shot["quality_tier"])
+        self.assertEqual(4, shot["stock_quantity"])
+        self.assertTrue(any(item["id"] == 4 for item in inventory))
 
 
 if __name__ == "__main__":

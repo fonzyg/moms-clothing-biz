@@ -16,11 +16,15 @@ import {
   SlidersHorizontal,
   Store,
   Trash2,
+  WandSparkles,
   X
 } from "lucide-react";
 import {
+  createModelShot,
   defaultStoreProfile,
   fetchFilters,
+  fetchModelShots,
+  fetchProductInventory,
   fetchProducts,
   fetchStoreProfile,
   formatMoney,
@@ -31,8 +35,10 @@ import {
 import type {
   CartItem,
   CheckoutPayload,
+  ModelShot,
   OrderReceipt,
   Product,
+  ProductInventory,
   StoreProfile,
   StoreProfileUpdatePayload,
   Variant
@@ -503,6 +509,8 @@ function AdminDashboard({
         <span className="updated-at">Updated {profile.updated_at}</span>
       </div>
 
+      <ModelShotPanel />
+
       <div className="admin-layout">
         <form className="admin-form" onSubmit={handleSubmit}>
           <label>
@@ -620,6 +628,182 @@ function AdminDashboard({
           </div>
         </aside>
       </div>
+    </section>
+  );
+}
+
+function ModelShotPanel() {
+  const [inventory, setInventory] = useState<ProductInventory[]>([]);
+  const [shots, setShots] = useState<ModelShot[]>([]);
+  const [productId, setProductId] = useState(0);
+  const [sourceImageUrl, setSourceImageUrl] = useState("");
+  const [sourceImageDataUrl, setSourceImageDataUrl] = useState<string | null>(null);
+  const [generating, setGenerating] = useState(false);
+  const [message, setMessage] = useState("");
+  const [error, setError] = useState("");
+
+  useEffect(() => {
+    fetchProductInventory().then((items) => {
+      setInventory(items);
+      setProductId((current) => current || items[0]?.id || 0);
+    });
+    fetchModelShots().then(setShots);
+  }, []);
+
+  const selectedProduct = inventory.find((item) => item.id === productId);
+  const qualityProfile = selectedProduct?.quality_profile;
+  const sourcePreview = sourceImageDataUrl ?? (sourceImageUrl || selectedProduct?.image_url || "");
+
+  async function handleShotImageChange(event: ChangeEvent<HTMLInputElement>) {
+    const file = event.target.files?.[0];
+    if (!file) {
+      return;
+    }
+    if (!["image/jpeg", "image/png", "image/webp"].includes(file.type)) {
+      setError("Choose a JPG, PNG, or WebP image.");
+      return;
+    }
+    if (file.size > 3_000_000) {
+      setError("Choose an image smaller than 3 MB.");
+      return;
+    }
+
+    setError("");
+    setMessage("");
+    setSourceImageDataUrl(await readFileAsDataUrl(file));
+  }
+
+  async function handleGenerateShot(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    if (!selectedProduct) {
+      setError("Choose a product first.");
+      return;
+    }
+
+    setGenerating(true);
+    setError("");
+    setMessage("");
+
+    try {
+      const generatedShot = await createModelShot({
+        product_id: selectedProduct.id,
+        source_image_url: sourceImageUrl || selectedProduct.image_url,
+        source_image_data_url: sourceImageDataUrl ?? undefined
+      });
+      setShots((current) => [generatedShot, ...current]);
+      setSourceImageDataUrl(null);
+      setSourceImageUrl("");
+      setMessage(`${generatedShot.quality_label} ready for ${generatedShot.product_name}`);
+    } catch (shotError) {
+      setError(shotError instanceof Error ? shotError.message : "Model shot generation failed");
+    } finally {
+      setGenerating(false);
+    }
+  }
+
+  return (
+    <section className="model-shot-panel" aria-label="AI model shot generator">
+      <div className="section-heading">
+        <div>
+          <p className="eyebrow">Stock-aware AI</p>
+          <h2>Model Shots</h2>
+        </div>
+        {qualityProfile && <span className={`quality-badge ${qualityProfile.quality_tier}`}>{qualityProfile.quality_label}</span>}
+      </div>
+
+      <div className="model-shot-grid">
+        <form className="admin-form model-shot-form" onSubmit={handleGenerateShot}>
+          <label>
+            Product
+            <select
+              aria-label="Product for model shot"
+              onChange={(event) => setProductId(Number(event.target.value))}
+              required
+              value={productId}
+            >
+              {inventory.map((item) => (
+                <option key={item.id} value={item.id}>
+                  {item.name} - {item.total_stock} in stock
+                </option>
+              ))}
+            </select>
+          </label>
+
+          <div className="stock-card">
+            <span>Stock</span>
+            <strong>{selectedProduct?.total_stock ?? 0}</strong>
+            <span>Mode</span>
+            <strong>{qualityProfile?.generation_mode ?? "pending"}</strong>
+          </div>
+
+          <label>
+            Clothing photo URL
+            <input
+              aria-label="Clothing photo URL"
+              onChange={(event) => {
+                setSourceImageUrl(event.target.value);
+                setSourceImageDataUrl(null);
+                setMessage("");
+                setError("");
+              }}
+              placeholder={selectedProduct?.image_url}
+              value={sourceImageUrl}
+            />
+          </label>
+
+          <label className="file-picker">
+            <Camera aria-hidden="true" />
+            Upload clothing photo
+            <input
+              accept="image/jpeg,image/png,image/webp"
+              aria-label="Upload clothing photo"
+              onChange={handleShotImageChange}
+              type="file"
+            />
+          </label>
+
+          {qualityProfile && <p className="quality-notes">{qualityProfile.notes}</p>}
+          {error && <p className="form-error">{error}</p>}
+          {message && <p className="form-success">{message}</p>}
+
+          <button className="checkout-button" disabled={generating || !selectedProduct} type="submit">
+            <WandSparkles aria-hidden="true" />
+            {generating ? "Generating" : "Generate model shot"}
+          </button>
+        </form>
+
+        <div className="model-shot-preview" aria-label="Model shot preview">
+          <div>
+            <p className="eyebrow">Source</p>
+            {sourcePreview ? <img alt="Source clothing" src={resolveMediaUrl(sourcePreview)} /> : <div className="blank-preview" />}
+          </div>
+          <div>
+            <p className="eyebrow">Generated</p>
+            {shots[0] ? (
+              <img alt={shots[0].product_name} src={resolveMediaUrl(shots[0].generated_image_url)} />
+            ) : selectedProduct ? (
+              <img alt={selectedProduct.name} src={resolveMediaUrl(selectedProduct.image_url)} />
+            ) : (
+              <div className="blank-preview" />
+            )}
+          </div>
+        </div>
+      </div>
+
+      {shots.length > 0 && (
+        <div className="model-shot-history" aria-label="Generated model shots">
+          {shots.slice(0, 4).map((shot) => (
+            <article key={shot.id}>
+              <img alt={shot.product_name} src={resolveMediaUrl(shot.generated_image_url)} />
+              <div>
+                <strong>{shot.product_name}</strong>
+                <span>{shot.stock_quantity} in stock</span>
+                <span>{shot.quality_label}</span>
+              </div>
+            </article>
+          ))}
+        </div>
+      )}
     </section>
   );
 }

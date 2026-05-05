@@ -67,3 +67,18 @@ CREATE TABLE IF NOT EXISTS store_profile (
     hero_image_url TEXT NOT NULL,
     updated_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP
 );
+
+CREATE TABLE IF NOT EXISTS generated_model_shots (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    product_id INTEGER NOT NULL,
+    source_image_url TEXT NOT NULL,
+    generated_image_url TEXT NOT NULL,
+    quality_tier TEXT NOT NULL,
+    quality_label TEXT NOT NULL,
+    generation_mode TEXT NOT NULL,
+    stock_quantity INTEGER NOT NULL CHECK (stock_quantity >= 0),
+    status TEXT NOT NULL DEFAULT 'ready',
+    notes TEXT NOT NULL,
+    created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    FOREIGN KEY (product_id) REFERENCES products(id) ON DELETE CASCADE
+);
