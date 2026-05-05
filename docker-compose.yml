@@ -1,0 +1,26 @@
+services:
+  api:
+    build:
+      context: .
+      dockerfile: Dockerfile.backend
+    environment:
+      STORE_DATABASE_PATH: /app/data/store.db
+      CORS_ALLOWED_ORIGINS: http://localhost:8080,http://127.0.0.1:8080
+    ports:
+      - "8000:8000"
+    volumes:
+      - store-data:/app/data
+
+  web:
+    build:
+      context: .
+      dockerfile: Dockerfile.frontend
+      args:
+        VITE_API_BASE_URL: http://localhost:8000/api
+    depends_on:
+      - api
+    ports:
+      - "8080:80"
+
+volumes:
+  store-data:

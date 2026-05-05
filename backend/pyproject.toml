@@ -1,0 +1,10 @@
+[tool.ruff]
+extend-exclude = [
+    ".pip-cache",
+    ".pip-tmp",
+    ".test-data",
+    ".venv",
+    "data",
+    "pytest-cache-files-*",
+    "tmp*",
+]
