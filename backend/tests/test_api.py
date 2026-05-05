@@ -13,9 +13,10 @@ def test_product_api_returns_seeded_catalog(monkeypatch):
     try:
         monkeypatch.setenv("STORE_DATABASE_PATH", str(db_path))
 
-        from app.main import app, database_path
+        from app.main import app, database_path, uploads_path
 
         database_path.cache_clear()
+        uploads_path.cache_clear()
         with TestClient(app) as client:
             response = client.get("/api/products?category=Outerwear")
 
@@ -33,9 +34,10 @@ def test_checkout_endpoint_creates_order(monkeypatch):
     try:
         monkeypatch.setenv("STORE_DATABASE_PATH", str(db_path))
 
-        from app.main import app, database_path
+        from app.main import app, database_path, uploads_path
 
         database_path.cache_clear()
+        uploads_path.cache_clear()
         with TestClient(app) as client:
             response = client.post(
                 "/api/orders",
@@ -50,5 +52,47 @@ def test_checkout_endpoint_creates_order(monkeypatch):
 
         assert response.status_code == 201
         assert response.json()["subtotal_cents"] == 6400
+    finally:
+        db_path.unlink(missing_ok=True)
+
+
+def test_admin_profile_endpoint_updates_contact_info_and_picture(monkeypatch):
+    scratch_root = Path(__file__).resolve().parents[1] / ".test-data"
+    scratch_root.mkdir(exist_ok=True)
+    db_path = scratch_root / f"store-{uuid4().hex}.db"
+    try:
+        monkeypatch.setenv("STORE_DATABASE_PATH", str(db_path))
+
+        from app.main import app, database_path, uploads_path
+
+        database_path.cache_clear()
+        uploads_path.cache_clear()
+        tiny_png = (
+            "data:image/png;base64,"
+            "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAwMCAO+/p9sAAAAASUVORK5CYII="
+        )
+        with TestClient(app) as client:
+            response = client.put(
+                "/api/admin/store-profile",
+                json={
+                    "business_name": "Maria's Closet",
+                    "tagline": "Polished outfits for weekday errands and weekend plans.",
+                    "contact_name": "Maria Sanchez",
+                    "email": "maria@example.com",
+                    "phone": "801-555-0199",
+                    "city": "Murray",
+                    "state": "UT",
+                    "instagram_url": "https://instagram.com/mariascloset",
+                    "hero_image_url": "/uploads/old-profile.png",
+                    "hero_image_data_url": tiny_png,
+                },
+            )
+            saved = client.get("/api/store-profile")
+
+        assert response.status_code == 200
+        payload = response.json()
+        assert payload["business_name"] == "Maria's Closet"
+        assert payload["hero_image_url"].startswith("/uploads/profile-")
+        assert saved.json()["phone"] == "801-555-0199"
     finally:
         db_path.unlink(missing_ok=True)

@@ -14,6 +14,7 @@ A full-stack clothing storefront built to fill the SWE I portfolio gaps recruite
 - Product catalog with category, size, and search filters.
 - Product variants with stock counts.
 - Cart and checkout flow.
+- Admin dashboard for updating store contact info and the storefront photo.
 - Python API that persists customers, orders, and order items.
 - Analytics endpoint showing revenue by category using explicit SQL joins and aggregation.
 
@@ -94,5 +95,7 @@ You can talk through:
 | GET | `/api/products` | Product listing with optional `category`, `size`, and `q` filters |
 | GET | `/api/products/{product_id}` | Product details with variants |
 | GET | `/api/filters` | Available categories and sizes |
+| GET | `/api/store-profile` | Editable storefront contact info and hero photo |
+| PUT | `/api/admin/store-profile` | Admin update for profile/contact/photo demo |
 | POST | `/api/orders` | Checkout |
 | GET | `/api/analytics/category-sales` | SQL aggregation by category |

@@ -8,12 +8,15 @@ from app.db import (
     InventoryError,
     OrderLine,
     OrderRequest,
+    StoreProfileUpdate,
     category_sales_summary,
     connect,
     create_order,
     get_product,
+    get_store_profile,
     initialize_database,
     list_products,
+    update_store_profile,
 )
 
 
@@ -97,6 +100,29 @@ class StoreDatabaseTest(unittest.TestCase):
         self.assertEqual(["Outerwear", "Tops"], [row["category"] for row in summary])
         self.assertEqual(9800, summary[0]["revenue_cents"])
         self.assertEqual(6400, summary[1]["revenue_cents"])
+
+    def test_store_profile_can_be_updated_for_admin_demo(self) -> None:
+        original = get_store_profile(self.connection)
+
+        updated = update_store_profile(
+            self.connection,
+            StoreProfileUpdate(
+                business_name="Maria's Closet",
+                tagline="Polished outfits for weekday errands and weekend plans.",
+                contact_name="Maria Sanchez",
+                email="maria@example.com",
+                phone="801-555-0199",
+                city="Murray",
+                state="ut",
+                instagram_url="https://instagram.com/mariascloset",
+                hero_image_url="/uploads/profile-demo.png",
+            ),
+        )
+
+        self.assertEqual(1, original["id"])
+        self.assertEqual("Maria's Closet", updated["business_name"])
+        self.assertEqual("maria@example.com", updated["email"])
+        self.assertEqual("UT", updated["state"])
 
 
 if __name__ == "__main__":

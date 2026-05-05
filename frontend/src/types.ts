@@ -26,6 +26,24 @@ export type ProductFilters = {
   q?: string;
 };
 
+export type StoreProfile = {
+  id: number;
+  business_name: string;
+  tagline: string;
+  contact_name: string;
+  email: string;
+  phone: string;
+  city: string;
+  state: string;
+  instagram_url: string;
+  hero_image_url: string;
+  updated_at: string;
+};
+
+export type StoreProfileUpdatePayload = Omit<StoreProfile, "id" | "updated_at"> & {
+  hero_image_data_url?: string;
+};
+
 export type CartItem = {
   product: Product;
   variant: Variant;

@@ -53,3 +53,17 @@ CREATE TABLE IF NOT EXISTS order_items (
 CREATE INDEX IF NOT EXISTS idx_products_category ON products(category);
 CREATE INDEX IF NOT EXISTS idx_variants_product_id ON variants(product_id);
 CREATE INDEX IF NOT EXISTS idx_order_items_order_id ON order_items(order_id);
+
+CREATE TABLE IF NOT EXISTS store_profile (
+    id INTEGER PRIMARY KEY CHECK (id = 1),
+    business_name TEXT NOT NULL,
+    tagline TEXT NOT NULL,
+    contact_name TEXT NOT NULL,
+    email TEXT NOT NULL,
+    phone TEXT NOT NULL,
+    city TEXT NOT NULL,
+    state TEXT NOT NULL,
+    instagram_url TEXT NOT NULL,
+    hero_image_url TEXT NOT NULL,
+    updated_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP
+);

@@ -1,4 +1,11 @@
-import type { CheckoutPayload, OrderReceipt, Product, ProductFilters } from "./types";
+import type {
+  CheckoutPayload,
+  OrderReceipt,
+  Product,
+  ProductFilters,
+  StoreProfile,
+  StoreProfileUpdatePayload
+} from "./types";
 
 const fallbackProducts: Product[] = [
   {
@@ -118,6 +125,20 @@ const fallbackProducts: Product[] = [
 
 const API_BASE_URL = import.meta.env.VITE_API_BASE_URL ?? "/api";
 
+export const defaultStoreProfile: StoreProfile = {
+  id: 1,
+  business_name: "Mom's Clothing Biz",
+  tagline: "Small-batch wardrobe staples picked with care.",
+  contact_name: "Maria Owner",
+  email: "hello@momsclothingbiz.com",
+  phone: "(801) 555-0148",
+  city: "Salt Lake City",
+  state: "UT",
+  instagram_url: "https://instagram.com/momsclothingbiz",
+  hero_image_url: "https://images.unsplash.com/photo-1445205170230-053b83016050?auto=format&fit=crop&w=1800&q=80",
+  updated_at: "Not saved yet"
+};
+
 export async function fetchProducts(filters: ProductFilters): Promise<Product[]> {
   const params = new URLSearchParams();
   Object.entries(filters).forEach(([key, value]) => {
@@ -154,6 +175,47 @@ export async function fetchFilters(): Promise<{ categories: string[]; sizes: str
       sizes: ["XS", "S", "M", "L", "XL"]
     };
   }
+}
+
+export async function fetchStoreProfile(): Promise<StoreProfile> {
+  try {
+    const response = await fetch(`${API_BASE_URL}/store-profile`);
+    if (!response.ok) {
+      throw new Error("Could not load store profile");
+    }
+    return (await response.json()) as StoreProfile;
+  } catch {
+    return defaultStoreProfile;
+  }
+}
+
+export async function updateStoreProfile(payload: StoreProfileUpdatePayload): Promise<StoreProfile> {
+  const response = await fetch(`${API_BASE_URL}/admin/store-profile`, {
+    method: "PUT",
+    headers: {
+      "Content-Type": "application/json"
+    },
+    body: JSON.stringify(payload)
+  });
+
+  if (!response.ok) {
+    const problem = (await response.json().catch(() => undefined)) as { detail?: string } | undefined;
+    throw new Error(problem?.detail ?? "Profile update failed");
+  }
+
+  return (await response.json()) as StoreProfile;
+}
+
+export function resolveMediaUrl(url: string): string {
+  if (!url.startsWith("/uploads")) {
+    return url;
+  }
+
+  if (API_BASE_URL.startsWith("http")) {
+    return new URL(url, API_BASE_URL.replace(/\/api\/?$/, "")).toString();
+  }
+
+  return url;
 }
 
 export async function submitOrder(payload: CheckoutPayload): Promise<OrderReceipt> {

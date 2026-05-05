@@ -24,6 +24,19 @@ class OrderRequest:
     items: list[OrderLine]
 
 
+@dataclass(frozen=True)
+class StoreProfileUpdate:
+    business_name: str
+    tagline: str
+    contact_name: str
+    email: str
+    phone: str
+    city: str
+    state: str
+    instagram_url: str
+    hero_image_url: str
+
+
 class StoreError(Exception):
     """Base exception for predictable store failures."""
 
@@ -45,6 +58,8 @@ def initialize_database(connection: sqlite3.Connection) -> None:
     _execute_script(connection, BASE_DIR / "sql" / "schema.sql")
     if _table_count(connection, "products") == 0:
         _execute_script(connection, BASE_DIR / "sql" / "seed.sql")
+    if _table_count(connection, "store_profile") == 0:
+        _insert_default_store_profile(connection)
 
 
 def list_products(
@@ -279,6 +294,64 @@ def category_sales_summary(connection: sqlite3.Connection) -> list[dict[str, Any
     return [dict(row) for row in rows]
 
 
+def get_store_profile(connection: sqlite3.Connection) -> dict[str, Any]:
+    row = connection.execute(
+        """
+        SELECT
+            id,
+            business_name,
+            tagline,
+            contact_name,
+            email,
+            phone,
+            city,
+            state,
+            instagram_url,
+            hero_image_url,
+            updated_at
+        FROM store_profile
+        WHERE id = 1
+        """
+    ).fetchone()
+    if row is None:
+        _insert_default_store_profile(connection)
+        row = connection.execute("SELECT * FROM store_profile WHERE id = 1").fetchone()
+    return dict(row)
+
+
+def update_store_profile(connection: sqlite3.Connection, profile: StoreProfileUpdate) -> dict[str, Any]:
+    with connection:
+        connection.execute(
+            """
+            UPDATE store_profile
+            SET
+                business_name = :business_name,
+                tagline = :tagline,
+                contact_name = :contact_name,
+                email = :email,
+                phone = :phone,
+                city = :city,
+                state = :state,
+                instagram_url = :instagram_url,
+                hero_image_url = :hero_image_url,
+                updated_at = CURRENT_TIMESTAMP
+            WHERE id = 1
+            """,
+            {
+                "business_name": profile.business_name,
+                "tagline": profile.tagline,
+                "contact_name": profile.contact_name,
+                "email": profile.email.lower(),
+                "phone": profile.phone,
+                "city": profile.city,
+                "state": profile.state.upper(),
+                "instagram_url": profile.instagram_url,
+                "hero_image_url": profile.hero_image_url,
+            },
+        )
+    return get_store_profile(connection)
+
+
 def _execute_script(connection: sqlite3.Connection, path: Path) -> None:
     connection.executescript(path.read_text(encoding="utf-8"))
     connection.commit()
@@ -311,6 +384,38 @@ def _upsert_customer(connection: sqlite3.Connection, request: OrderRequest) -> i
         {"email": request.email.lower()},
     ).fetchone()
     return int(row["id"])
+
+
+def _insert_default_store_profile(connection: sqlite3.Connection) -> None:
+    connection.execute(
+        """
+        INSERT OR IGNORE INTO store_profile (
+            id,
+            business_name,
+            tagline,
+            contact_name,
+            email,
+            phone,
+            city,
+            state,
+            instagram_url,
+            hero_image_url
+        )
+        VALUES (
+            1,
+            'Mom''s Clothing Biz',
+            'Small-batch wardrobe staples picked with care.',
+            'Maria Owner',
+            'hello@momsclothingbiz.com',
+            '(801) 555-0148',
+            'Salt Lake City',
+            'UT',
+            'https://instagram.com/momsclothingbiz',
+            'https://images.unsplash.com/photo-1445205170230-053b83016050?auto=format&fit=crop&w=1800&q=80'
+        )
+        """
+    )
+    connection.commit()
 
 
 def _product_from_row(row: sqlite3.Row) -> dict[str, Any]:

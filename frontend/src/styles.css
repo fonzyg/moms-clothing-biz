@@ -29,7 +29,8 @@ body {
 
 button,
 input,
-select {
+select,
+textarea {
   font: inherit;
 }
 
@@ -47,6 +48,31 @@ main {
   width: min(1440px, 100%);
   margin: 0 auto;
   padding: 24px;
+}
+
+.view-tabs {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-bottom: 16px;
+}
+
+.view-tabs button {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  min-height: 42px;
+  padding: 0 14px;
+  border: 1px solid var(--line);
+  background: #ffffff;
+  color: var(--ink);
+  font-weight: 800;
+}
+
+.view-tabs button.active {
+  border-color: var(--denim);
+  background: var(--denim);
+  color: #ffffff;
 }
 
 .shop-header {
@@ -126,6 +152,26 @@ h2 {
   border-block: 1px solid var(--line);
 }
 
+.contact-strip {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+  margin: 18px 0 0;
+}
+
+.contact-strip a,
+.contact-strip span {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  min-height: 40px;
+  padding: 0 12px;
+  border: 1px solid var(--line);
+  background: #ffffff;
+  color: var(--ink);
+  text-decoration: none;
+}
+
 .toolbar label {
   display: flex;
   align-items: center;
@@ -143,7 +189,9 @@ h2 {
 .search-field input,
 .toolbar select,
 .variant-row select,
-.checkout-form input {
+.checkout-form input,
+.admin-form input,
+.admin-form textarea {
   width: 100%;
   min-width: 0;
   border: 0;
@@ -362,7 +410,10 @@ h2 {
 .ghost-button svg,
 .variant-row svg,
 .checkout-button svg,
-.toolbar svg {
+.toolbar svg,
+.view-tabs svg,
+.contact-strip svg,
+.file-picker svg {
   width: 18px;
   height: 18px;
 }
@@ -413,11 +464,127 @@ h2 {
   font-weight: 700;
 }
 
+.form-success {
+  margin-bottom: 0;
+  color: var(--sage);
+  font-weight: 800;
+}
+
 .checkout-button {
   width: 100%;
   min-height: 48px;
   padding: 0 16px;
   font-weight: 800;
+}
+
+.admin-dashboard {
+  margin-top: 22px;
+}
+
+.updated-at {
+  color: var(--muted);
+  font-size: 0.9rem;
+}
+
+.admin-layout {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(280px, 420px);
+  gap: 24px;
+  margin-top: 18px;
+  align-items: start;
+}
+
+.admin-form {
+  display: grid;
+  gap: 12px;
+  padding: 18px;
+  border: 1px solid var(--line);
+  background: #ffffff;
+  box-shadow: var(--shadow);
+}
+
+.admin-form label {
+  display: grid;
+  gap: 6px;
+  color: var(--muted);
+  font-size: 0.86rem;
+  font-weight: 800;
+}
+
+.admin-form input,
+.admin-form textarea {
+  min-height: 44px;
+  padding: 10px 12px;
+  border: 1px solid var(--line);
+  background: #ffffff;
+  color: var(--ink);
+  outline: 0;
+}
+
+.admin-form textarea {
+  min-height: 92px;
+  resize: vertical;
+}
+
+.admin-form-row {
+  display: grid;
+  grid-template-columns: 1fr;
+  gap: 12px;
+}
+
+.file-picker {
+  display: inline-flex !important;
+  align-items: center;
+  justify-content: center;
+  gap: 8px !important;
+  min-height: 44px;
+  border: 1px dashed var(--sage);
+  background: var(--soft);
+  color: var(--ink) !important;
+}
+
+.file-picker input {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  overflow: hidden;
+  clip: rect(0 0 0 0);
+}
+
+.profile-preview {
+  overflow: hidden;
+  border: 1px solid var(--line);
+  background: #ffffff;
+  box-shadow: var(--shadow);
+}
+
+.profile-preview img {
+  display: block;
+  width: 100%;
+  aspect-ratio: 4 / 3;
+  object-fit: cover;
+  background: var(--soft);
+}
+
+.profile-preview div {
+  display: grid;
+  gap: 8px;
+  padding: 18px;
+}
+
+.profile-preview h3 {
+  margin-bottom: 0;
+  font-size: 1.35rem;
+}
+
+.profile-preview p {
+  margin-bottom: 2px;
+  color: var(--muted);
+  line-height: 1.5;
+}
+
+.profile-preview span {
+  color: var(--muted);
 }
 
 .skeleton-card {
@@ -437,7 +604,8 @@ h2 {
 
 @media (max-width: 980px) {
   .store-layout,
-  .shop-header {
+  .shop-header,
+  .admin-layout {
     grid-template-columns: 1fr;
   }
 
@@ -457,8 +625,15 @@ h2 {
   }
 
   .toolbar label,
-  .segmented-control {
+  .segmented-control,
+  .view-tabs button,
+  .contact-strip a,
+  .contact-strip span {
     width: 100%;
+  }
+
+  .admin-form-row {
+    grid-template-columns: 1fr;
   }
 
   .product-grid,
